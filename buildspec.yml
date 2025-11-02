@@ -5,11 +5,12 @@ phases:
     runtime-versions:
       python: 3.9
     commands:
+      - echo "Installing dependencies..."
       - pip install -r requirements.txt -t .
   build:
     commands:
-      - echo "Zipping source code..."
-      - zip -r9 lambda_function.zip .
+      - echo "Packaging Lambda function..."
+      - zip -r lambda_function.zip . -x "buildspec.yml"
 artifacts:
   files:
     - lambda_function.zip
