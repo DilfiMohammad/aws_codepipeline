@@ -3,11 +3,13 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      nodejs: 18
+      python: 3.9
+    commands:
+      - pip install -r requirements.txt -t .
   build:
     commands:
-      - echo "Packaging Lambda function..."
-      - zip -r lambda_function.zip .
+      - echo "Zipping source code..."
+      - zip -r9 lambda_function.zip .
 artifacts:
   files:
     - lambda_function.zip
