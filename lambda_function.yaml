@@ -12,7 +12,7 @@ Parameters:
   GitHubBranch:
     Type: String
     Default: main
-    Description: Branch to build from
+    Description: ci/cd-branch
   GitHubToken:
     Type: String
     NoEcho: true
@@ -20,7 +20,7 @@ Parameters:
   LambdaFunctionName:
     Type: String
     Default: MyPipelineLambda
-    Description: Name of the Lambda function
+    Description: 
 
 Resources:
   ArtifactBucket:
