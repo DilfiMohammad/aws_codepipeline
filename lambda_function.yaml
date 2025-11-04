@@ -19,7 +19,7 @@ Parameters:
     Description: GitHub personal access token (use GitHub connection for production)
   LambdaFunctionName:
     Type: String
-    Default: MyPipelineLambda
+    Default: lambda.py
     Description: 
 
 Resources:
