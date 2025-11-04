@@ -4,13 +4,17 @@ phases:
   install:
     runtime-versions:
       python: 3.9
-    commands:
-      - echo "Installing dependencies..."
-      - pip install -r requirements.txt -t .
   build:
     commands:
-      - echo "Packaging Lambda function..."
-      - zip -r lambda_function.zip . -x "buildspec.yml"
+      - echo "Zipping Lambda function..."
+      - zip lambda.zip lambda_function.py
+      - echo "Packaging CloudFormation template..."
+      - aws cloudformation package \
+          --template-file lambda-cicd.yaml \
+          --s3-bucket $S3_BUCKET \
+          --output-template-file output-template.yaml
+
 artifacts:
   files:
-    - lambda_function.zip
+    - output-template.yaml
+    - lambda.zip
