@@ -16,17 +16,16 @@ Parameters:
   GitHubToken:
     Type: String
     NoEcho: true
-    Description: GitHub personal access token (use GitHub connection for production)
+    Description: GitHub personal access token (use CodeStar connection for production)
   LambdaFunctionName:
     Type: String
-    Default: lambda.py
-    Description: 
+    Default: lambda-function
+    Description: lambda.py
 
 Resources:
   ArtifactBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::StackName}-artifacts-${AWS::AccountId}"
       VersioningConfiguration:
         Status: Enabled
 
@@ -34,7 +33,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
@@ -43,23 +42,35 @@ Resources:
       Policies:
         - PolicyName: CodeBuildPolicy
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  - s3:*
-                  - cloudformation:PackageType
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - cloudformation:Package
                   - cloudformation:DescribeStacks
                   - cloudformation:CreateChangeSet
                   - cloudformation:ExecuteChangeSet
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                Resource: '*'
+              - Effect: Allow
+                Action:
                   - lambda:UpdateFunctionCode
-                Resource: "*"
+                  - lambda:CreateFunction
+                  - lambda:PublishVersion
+                Resource: '*'
 
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
@@ -68,20 +79,26 @@ Resources:
       Policies:
         - PolicyName: CodePipelinePolicy
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  - s3:*
-                  - codebuild:*
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
                   - cloudformation:*
                   - iam:PassRole
-                Resource: "*"
+                Resource: '*'
 
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Sub "${AWS::StackName}-build"
+      Name: !Sub "codebuild-dilfi"
       ServiceRole: !GetAtt CodeBuildRole.Arn
       Artifacts:
         Type: CODEPIPELINE
@@ -95,12 +112,12 @@ Resources:
       Source:
         Type: CODEPIPELINE
         BuildSpec: buildspec.yml
-      TimeoutInMinutes: 10
+      TimeoutInMinutes: 15
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: !Sub "${AWS::StackName}-pipeline"
+      Name: !Sub "codepipeline-dilfi"
       RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3
@@ -113,7 +130,7 @@ Resources:
                 Category: Source
                 Owner: ThirdParty
                 Provider: GitHub
-                Version: 1
+                Version: '1'
               OutputArtifacts:
                 - Name: SourceOutput
               Configuration:
@@ -129,7 +146,7 @@ Resources:
                 Category: Build
                 Owner: AWS
                 Provider: CodeBuild
-                Version: 1
+                Version: '1'
               InputArtifacts:
                 - Name: SourceOutput
               OutputArtifacts:
@@ -143,24 +160,24 @@ Resources:
                 Category: Deploy
                 Owner: AWS
                 Provider: CloudFormation
-                Version: 1
+                Version: '1'
               InputArtifacts:
                 - Name: BuildOutput
               Configuration:
                 ActionMode: CREATE_UPDATE
-                StackName: !Sub "${LambdaFunctionName}-stack"
+                StackName: !Sub "Dilfistack"
                 TemplatePath: BuildOutput::output-template.yaml
                 Capabilities: CAPABILITY_IAM
 
 Outputs:
   PipelineName:
-    Value: !Ref Pipeline
     Description: The name of the CodePipeline
+    Value: !Ref Pipeline
 
   ArtifactBucketName:
-    Value: !Ref ArtifactBucket
     Description: The name of the artifact S3 bucket
+    Value: !Ref ArtifactBucket
 
   BuildProjectName:
-    Value: !Ref CodeBuildProject
     Description: The name of the CodeBuild project
+    Value: !Ref CodeBuildProject
