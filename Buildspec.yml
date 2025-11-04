@@ -1,13 +1,19 @@
 version: 0.2
+
 phases:
   install:
+    runtime-versions:
+      python: 3.9
     commands:
-      - echo "Installing dependencies..."
       - pip install -r requirements.txt -t .
   build:
     commands:
-      - echo "Packaging and deploying Lambda..."
+      - echo "Packaging..."
       - zip -r lambda.zip .
-      - aws lambda update-function-code \
-          --function-name MyPipelineLambda \
-          --zip-file fileb://lambda.zip
+  post_build:
+    commands:
+      - echo "Deploying to Lambda..."
+      - aws lambda update-function-code --function-name MyPipelineLambda --zip-file fileb://lambda.zip
+artifacts:
+  files:
+    - lambda.zip
