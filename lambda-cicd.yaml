@@ -1,0 +1,184 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CI/CD Pipeline for Lambda Deployment using GitHub, CodePipeline, CodeBuild, and CloudFormation
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Description: DilfiMohammad
+  GitHubRepo:
+    Type: String
+    Description: aws_codepipeline
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: ci/cd-branch
+  GitHubToken:
+    Type: String
+    NoEcho: true
+    Description: GitHub personal access token (use CodeStar connection for production)
+  LambdaFunctionName:
+    Type: String
+    Default: lambda-function
+    Description: lambda.py
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - cloudformation:Package
+                  - cloudformation:DescribeStacks
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+                  - lambda:CreateFunction
+                  - lambda:PublishVersion
+                Resource: '*'
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - cloudformation:*
+                  - iam:PassRole
+                Resource: '*'
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "codebuild-dilfi"
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: S3_BUCKET
+            Value: !Ref ArtifactBucket
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec.yml
+      TimeoutInMinutes: 15
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub "codepipeline-dilfi"
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHubSource
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: '1'
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                Owner: !Ref GitHubOwner
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+                OAuthToken: !Ref GitHubToken
+                PollForSourceChanges: false
+        - Name: Build
+          Actions:
+            - Name: LambdaBuild
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+        - Name: Deploy
+          Actions:
+            - Name: CloudFormationDeploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: !Sub "Dilfistack"
+                TemplatePath: BuildOutput::output-template.yaml
+                Capabilities: CAPABILITY_IAM
+
+Outputs:
+  PipelineName:
+    Description: The name of the CodePipeline
+    Value: !Ref Pipeline
+
+  ArtifactBucketName:
+    Description: The name of the artifact S3 bucket
+    Value: !Ref ArtifactBucket
+
+  BuildProjectName:
+    Description: The name of the CodeBuild project
+    Value: !Ref CodeBuildProject
